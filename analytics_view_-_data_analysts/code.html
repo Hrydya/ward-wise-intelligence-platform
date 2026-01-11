@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Analytics View - Data Analysts</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Noto+Sans:wght@400;500;600&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#00cbe6",
+                        "background-light": "#f1f4f4",
+                        "background-dark": "#132729",
+                        "surface-dark": "#293839",
+                        "border-dark": "#475051",
+                        "accent-orange": "#fa5c38",
+                        "accent-lime": "#0bda54"
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"],
+                        "sans": ["Noto Sans", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        .grid-bg {
+            background-image: radial-gradient(rgba(71, 80, 81, 0.2) 1px, transparent 0);
+            background-size: 24px 24px;
+        }
+
+        .confidence-band {
+            fill: rgba(0, 203, 230, 0.1);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .tab-active {
+            background-color: #293839;
+            border-left-width: 4px;
+            border-color: #00cbe6;
+            color: white;
+        }
+
+        .tab-inactive {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .tab-inactive:hover {
+            color: white;
+        }
+    </style>
+</head>
+
+<body
+    class="bg-background-light dark:bg-background-dark font-sans text-slate-900 dark:text-slate-100 min-h-screen grid-bg overflow-hidden">
+
+    <!-- Preloader Removed -->
+
+    <!-- Map Tooltip -->
+    <div id="map-tooltip"
+        class="fixed hidden z-[9999] bg-black/90 text-white p-3 rounded-lg pointer-events-none border border-white/20 shadow-xl backdrop-blur-md">
+        <div class="font-bold text-sm mb-1" id="tooltip-name">Ward Name</div>
+        <div class="flex items-center gap-2 text-xs">
+            <span class="text-gray-400">AQI:</span>
+            <span class="font-bold text-primary text-lg leading-none" id="tooltip-aqi">--</span>
+        </div>
+    </div>
+
+    <div class="flex h-screen overflow-hidden">
+        <!-- Sidebar Navigation -->
+        <aside class="w-64 border-r border-border-dark bg-background-dark flex flex-col justify-between py-6">
+            <div class="px-4 space-y-8">
+                <div class="flex items-center gap-3 px-2">
+                    <div class="size-10 bg-primary rounded flex items-center justify-center text-background-dark">
+                        <span class="material-symbols-outlined font-bold">query_stats</span>
+                    </div>
+                    <div>
+                        <h1 class="font-display font-bold text-white text-sm uppercase tracking-wider leading-tight">
+                            Data Analyst</h1>
+                        <p class="text-xs text-primary/70 font-medium">Technical Portal</p>
+                    </div>
+                </div>
+                <nav class="space-y-1">
+                    <button id="tab-overview"
+                        class="w-full flex items-center gap-3 px-3 py-2 tab-active rounded-r transition-colors group"
+                        onclick="switchTab('overview')">
+                        <span class="material-symbols-outlined group-hover:text-primary">grid_view</span>
+                        <span class="text-sm font-medium font-display">Overview</span>
+                    </button>
+                    <button id="tab-integrity"
+                        class="w-full flex items-center gap-3 px-3 py-2 tab-inactive hover:bg-surface-dark/50 rounded-r transition-colors group"
+                        onclick="switchTab('integrity')">
+                        <span class="material-symbols-outlined group-hover:text-primary">analytics</span>
+                        <span class="text-sm font-medium font-display">Integrity Metrics</span>
+                    </button>
+                    <button id="tab-sensor"
+                        class="w-full flex items-center gap-3 px-3 py-2 tab-inactive hover:bg-surface-dark/50 rounded-r transition-colors group"
+                        onclick="switchTab('sensor')">
+                        <span class="material-symbols-outlined group-hover:text-primary">sensors</span>
+                        <span class="text-sm font-medium font-display">Sensor Network</span>
+                    </button>
+                    <button id="tab-logs"
+                        class="w-full flex items-center gap-3 px-3 py-2 tab-inactive hover:bg-surface-dark/50 rounded-r transition-colors group"
+                        onclick="switchTab('logs')">
+                        <span class="material-symbols-outlined group-hover:text-primary">hub</span>
+                        <span class="text-sm font-medium font-display">ML Model Logs</span>
+                    </button>
+                </nav>
+            </div>
+            <div class="px-4">
+                <button onclick="exportPDF()"
+                    class="w-full py-2 px-4 bg-primary text-background-dark font-display font-bold text-xs rounded uppercase tracking-tighter hover:bg-white transition-all flex items-center justify-center gap-2">
+                    <span class="material-symbols-outlined text-sm">download</span>
+                    Export Technical Report
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 flex flex-col overflow-y-auto">
+            <!-- Header -->
+            <header
+                class="sticky top-0 z-10 flex items-center justify-between px-8 py-4 bg-background-dark/80 backdrop-blur-md border-b border-border-dark">
+                <div class="flex items-center gap-6">
+                    <h2 class="font-display text-xl font-bold text-white uppercase tracking-tight">Data Integrity &amp;
+                        Pattern Monitoring</h2>
+                    <div class="relative w-64">
+                        <span
+                            class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-white/40 text-sm">search</span>
+                        <input
+                            class="w-full bg-surface-dark border-none rounded text-xs py-2 pl-10 focus:ring-1 focus:ring-primary text-white"
+                            placeholder="Search parameters..." type="text" />
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="flex gap-1 border-r border-border-dark pr-4">
+                        <button class="p-2 hover:bg-surface-dark rounded text-white/60 hover:text-white">
+                            <span class="material-symbols-outlined text-[20px]">refresh</span>
+                        </button>
+                        <button class="p-2 hover:bg-surface-dark rounded text-white/60 hover:text-white">
+                            <span class="material-symbols-outlined text-[20px]">settings</span>
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-3 pl-2">
+                        <div class="text-right">
+                            <p class="text-xs font-bold text-white uppercase">Dr. Arun</p>
+                            <p class="text-[10px] text-accent-lime uppercase font-medium">System Admin</p>
+                        </div>
+                        <div class="size-8 rounded bg-center bg-cover border border-primary/30"
+                            style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDf9TQxZM4xvq9yRO-WtzmOnjCSRYZF7lSu-daa69OLuA3ys_4DKr9XR0L_mTXpp6LVDJViu-79OrGDWMZTuc6EkQpz7eKsJHJ7CEReCBmEjR0dveIZjyPmlsK-TYuASgZ62Yo42285_dLtVot1dsgIw2zHfvdkn3EgrtMAM-wcyNQuHYtnG14y03qwpFL86LvTnPWGhPo6ZWiuZZRHLT_XLOoryFYVO--IOeaUE0YDbMSkaflbSRq8jyd4R8PzI6Gwvc4Z5tPr59I')">
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="p-8 space-y-6">
+
+                <!-- OVERVIEW TAB -->
+                <div id="content-overview" class="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <!-- Top Grid: Technical Metrics -->
+                    <section class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div
+                            class="bg-surface-dark p-6 rounded-lg border border-border-dark flex items-center justify-between">
+                            <div class="space-y-1">
+                                <p class="text-xs text-white/60 font-medium uppercase tracking-widest">
+                                    Sensor-to-Estimate Ratio</p>
+                                <p class="text-3xl font-display font-bold text-white tracking-tighter">1:4.2</p>
+                                <p class="text-xs text-accent-lime flex items-center gap-1 font-bold">
+                                    <span class="material-symbols-outlined text-sm">trending_up</span>
+                                    +0.2%
+                                </p>
+                            </div>
+                            <div class="relative size-16 flex items-center justify-center">
+                                <svg class="size-full -rotate-90">
+                                    <circle class="text-white/10" cx="32" cy="32" fill="none" r="28"
+                                        stroke="currentColor" stroke-width="6"></circle>
+                                    <circle class="text-primary" cx="32" cy="32" fill="none" r="28"
+                                        stroke="currentColor" stroke-dasharray="176" stroke-dashoffset="44"
+                                        stroke-width="6"></circle>
+                                </svg>
+                                <span class="absolute text-[10px] font-bold text-white">75%</span>
+                            </div>
+                        </div>
+                        <div class="bg-surface-dark p-6 rounded-lg border border-border-dark space-y-4">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <p class="text-xs text-white/60 font-medium uppercase tracking-widest">Network
+                                        Uptime</p>
+                                    <p class="text-3xl font-display font-bold text-white tracking-tighter">99.98%</p>
+                                </div>
+                                <span
+                                    class="px-2 py-0.5 bg-accent-lime/10 text-accent-lime text-[10px] font-bold rounded border border-accent-lime/20 uppercase">Stable</span>
+                            </div>
+                            <div class="h-8 w-full flex items-end gap-0.5">
+                                <div class="w-full bg-accent-lime/40 h-4"></div>
+                                <div class="w-full bg-accent-lime/40 h-5"></div>
+                                <div class="w-full bg-accent-lime/40 h-4"></div>
+                                <div class="w-full bg-accent-lime/40 h-6"></div>
+                                <div class="w-full bg-accent-lime/40 h-5"></div>
+                                <div class="w-full bg-accent-lime h-6"></div>
+                                <div class="w-full bg-accent-lime h-5"></div>
+                                <div class="w-full bg-accent-lime/20 h-2"></div>
+                                <div class="w-full bg-accent-lime h-6"></div>
+                            </div>
+                        </div>
+                        <div class="bg-surface-dark p-6 rounded-lg border border-border-dark relative overflow-hidden">
+                            <div class="space-y-1">
+                                <p class="text-xs text-white/60 font-medium uppercase tracking-widest">Anomaly Count</p>
+                                <p class="text-3xl font-display font-bold text-white tracking-tighter">12 <span
+                                        class="text-sm font-normal text-white/40 uppercase">Detected</span></p>
+                                <p class="text-xs text-accent-orange flex items-center gap-1 font-bold">
+                                    <span class="material-symbols-outlined text-sm">priority_high</span>
+                                    Critical: 02
+                                </p>
+                            </div>
+                            <div class="absolute -right-2 -bottom-4 opacity-10">
+                                <span class="material-symbols-outlined text-8xl text-accent-orange">warning</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Center: Historical AQI Trend Graph -->
+                    <section class="bg-surface-dark p-6 rounded-lg border border-border-dark">
+                        <div class="flex items-center justify-between mb-8">
+                            <div>
+                                <h3 class="font-display text-lg font-bold text-white uppercase tracking-tight">
+                                    Historical AQI Trend &amp; Model Confidence</h3>
+                                <p class="text-xs text-white/40">Aggregated ward data vs predictive confidence interval
+                                    (30-day window)</p>
+                            </div>
+                            <div class="flex gap-4">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-3 h-3 rounded-full bg-primary"></div>
+                                    <span class="text-[10px] text-white/60 font-bold uppercase">Measured</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <div class="w-3 h-3 rounded bg-primary/20 border border-primary/40"></div>
+                                    <span class="text-[10px] text-white/60 font-bold uppercase">Confidence Band</span>
+                                </div>
+                                <select
+                                    class="bg-background-dark border-border-dark rounded text-[10px] font-bold text-white px-3 py-1 uppercase outline-none focus:ring-1 focus:ring-primary">
+                                    <option>Last 30 Days</option>
+                                    <option>Last 7 Days</option>
+                                    <option>Custom Range</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="w-full h-[320px] relative">
+                            <!-- SVG Chart Simulation -->
+                            <svg class="w-full h-full" viewbox="0 0 800 300">
+                                <!-- Grid lines -->
+                                <line stroke="#475051" stroke-dasharray="4" x1="0" x2="800" y1="50" y2="50"></line>
+                                <line stroke="#475051" stroke-dasharray="4" x1="0" x2="800" y1="150" y2="150"></line>
+                                <line stroke="#475051" stroke-dasharray="4" x1="0" x2="800" y1="250" y2="250"></line>
+                                <!-- Confidence Band Area -->
+                                <path class="confidence-band"
+                                    d="M0 160 Q 100 120, 200 150 T 400 100 T 600 140 T 800 90 V 130 T 600 180 T 400 140 T 200 190 T 0 200 Z">
+                                </path>
+                                <!-- Main Data Line -->
+                                <path d="M0 180 Q 100 140, 200 170 T 400 120 T 600 160 T 800 110" fill="none"
+                                    stroke="#00cbe6" stroke-width="3"></path>
+                                <!-- Ward 2 Line -->
+                                <path d="M0 220 Q 150 180, 300 210 T 500 160 T 800 180" fill="none" stroke="#9ab8bc"
+                                    stroke-opacity="0.4" stroke-width="2"></path>
+                            </svg>
+                            <!-- Axis Labels -->
+                            <div
+                                class="flex justify-between pt-4 text-[10px] font-bold text-white/40 uppercase tracking-widest">
+                                <span>01 Oct</span>
+                                <span>07 Oct</span>
+                                <span>14 Oct</span>
+                                <span>21 Oct</span>
+                                <span>28 Oct</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Bottom Row: Map & Methodology -->
+                    <section class="grid grid-cols-1 lg:grid-cols-5 gap-6 h-[400px]">
+                        <!-- Bottom Left: Sensor Coverage Map -->
+                        <div
+                            class="lg:col-span-3 bg-surface-dark rounded-lg border border-border-dark flex flex-col overflow-hidden relative">
+                            <div
+                                class="p-4 border-b border-border-dark flex justify-between items-center bg-background-dark/30 z-10">
+                                <h3 class="font-display text-sm font-bold text-white uppercase tracking-tight">Sensor
+                                    Coverage Map</h3>
+                                <div class="flex gap-2">
+                                    <span class="flex items-center gap-1 text-[10px] text-white/60">
+                                        <span class="size-2 bg-primary rounded-full"></span> Physical
+                                    </span>
+                                    <span class="flex items-center gap-1 text-[10px] text-white/60">
+                                        <span class="size-2 border border-primary rotate-45"></span> Virtual
+                                    </span>
+                                </div>
+                            </div>
+                            <div id="map-container" class="flex-1 w-full h-full z-0"></div>
+                        </div>
+                        <!-- Bottom Right: Estimation Methodology -->
+                        <div
+                            class="lg:col-span-2 bg-surface-dark rounded-lg border border-border-dark flex flex-col overflow-hidden">
+                            <div class="p-4 border-b border-border-dark bg-background-dark/30">
+                                <h3 class="font-display text-sm font-bold text-white uppercase tracking-tight">
+                                    Estimation Methodology</h3>
+                            </div>
+                            <div class="flex-1 p-5 overflow-y-auto space-y-4">
+                                <div class="space-y-2">
+                                    <p class="text-[10px] text-primary font-bold uppercase tracking-widest">Active Model
+                                    </p>
+                                    <div
+                                        class="flex items-center justify-between p-3 bg-background-dark border border-primary/20 rounded">
+                                        <div>
+                                            <p class="text-xs font-bold text-white">Random Forest Regressor v2.1</p>
+                                            <p class="text-[10px] text-white/40">Hybrid spatial-temporal interpolation
+                                            </p>
+                                        </div>
+                                        <span class="material-symbols-outlined text-accent-lime">check_circle</span>
+                                    </div>
+                                </div>
+                                <div class="space-y-2 pt-2 border-t border-border-dark/50">
+                                    <p class="text-[10px] text-white/40 font-bold uppercase tracking-widest">Identified
+                                        Data Gaps</p>
+                                    <div class="space-y-3">
+                                        <div class="flex gap-3">
+                                            <div class="shrink-0 w-0.5 h-auto bg-accent-orange rounded"></div>
+                                            <div>
+                                                <p class="text-[11px] font-bold text-white">East Industrial Corridor
+                                                    (Missing PM2.5)</p>
+                                                <p class="text-[10px] text-white/40">Interpolating from adjacent Node
+                                                    05-09.</p>
+                                            </div>
+                                        </div>
+                                        <div class="flex gap-3">
+                                            <div class="shrink-0 w-0.5 h-auto bg-primary rounded"></div>
+                                            <div>
+                                                <p class="text-[11px] font-bold text-white">Central Transit Hub (Network
+                                                    Lag)</p>
+                                                <p class="text-[10px] text-white/40">Syncing every 15min instead of
+                                                    5min.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="pt-4">
+                                    <button
+                                        class="w-full py-2 bg-transparent border border-border-dark rounded text-[10px] font-bold text-white uppercase hover:border-primary transition-colors">
+                                        View Full Model Documentation
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- INTEGRITY METRICS TAB -->
+                <div id="content-integrity"
+                    class="hidden space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-surface-dark p-6 rounded-lg border border-border-dark">
+                            <h3 class="font-display text-sm font-bold text-white uppercase tracking-tight mb-4">
+                                Calibration Drift Analysis</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <div class="flex justify-between text-xs mb-1">
+                                        <span class="text-white/60">PM2.5 Sensors (Optical)</span>
+                                        <span class="text-accent-lime font-bold">0.4% Drift</span>
+                                    </div>
+                                    <div class="h-2 bg-background-dark rounded-full overflow-hidden">
+                                        <div class="h-full bg-accent-lime w-[98%]"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-xs mb-1">
+                                        <span class="text-white/60">NO2 Electrochemical</span>
+                                        <span class="text-accent-orange font-bold">2.1% Drift</span>
+                                    </div>
+                                    <div class="h-2 bg-background-dark rounded-full overflow-hidden">
+                                        <div class="h-full bg-accent-orange w-[92%]"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-xs mb-1">
+                                        <span class="text-white/60">O3 Semiconductor</span>
+                                        <span class="text-primary font-bold">1.2% Drift</span>
+                                    </div>
+                                    <div class="h-2 bg-background-dark rounded-full overflow-hidden">
+                                        <div class="h-full bg-primary w-[95%]"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-surface-dark p-6 rounded-lg border border-border-dark">
+                            <h3 class="font-display text-sm font-bold text-white uppercase tracking-tight mb-4">Data
+                                Confidence Scores</h3>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="bg-background-dark p-4 rounded border border-border-dark text-center">
+                                    <p class="text-xs text-white/40 uppercase font-bold">Spatial</p>
+                                    <p class="text-2xl font-bold text-white">94.2%</p>
+                                </div>
+                                <div class="bg-background-dark p-4 rounded border border-border-dark text-center">
+                                    <p class="text-xs text-white/40 uppercase font-bold">Temporal</p>
+                                    <p class="text-2xl font-bold text-white">98.1%</p>
+                                </div>
+                                <div class="bg-background-dark p-4 rounded border border-border-dark text-center">
+                                    <p class="text-xs text-white/40 uppercase font-bold">Source</p>
+                                    <p class="text-2xl font-bold text-white">89.5%</p>
+                                </div>
+                                <div class="bg-background-dark p-4 rounded border border-border-dark text-center">
+                                    <p class="text-xs text-white/40 uppercase font-bold">Overall</p>
+                                    <p class="text-2xl font-bold text-primary">93.9%</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SENSOR NETWORK TAB -->
+                <div id="content-sensor"
+                    class="hidden space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div class="flex items-center justify-between">
+                        <h3 class="font-display text-lg font-bold text-white uppercase">Node Status</h3>
+                        <div class="flex gap-2">
+                            <span
+                                class="px-2 py-1 bg-accent-lime/10 text-accent-lime text-[10px] font-bold rounded border border-accent-lime/20">ONLINE:
+                                1,214</span>
+                            <span
+                                class="px-2 py-1 bg-accent-orange/10 text-accent-orange text-[10px] font-bold rounded border border-accent-orange/20">OFFLINE:
+                                26</span>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <!-- Node Card -->
+                        <div
+                            class="bg-surface-dark p-4 rounded border border-border-dark flex items-center justify-between group hover:border-primary/50 transition-colors">
+                            <div class="flex items-center gap-3">
+                                <div class="size-2 rounded-full bg-accent-lime shadow-[0_0_8px_rgba(11,218,84,0.6)]">
+                                </div>
+                                <div>
+                                    <p class="text-xs font-bold text-white">NODE_PHYS_042</p>
+                                    <p class="text-[10px] text-white/40">Connaught Place • 4ms Latency</p>
+                                </div>
+                            </div>
+                            <span
+                                class="material-symbols-outlined text-white/20 group-hover:text-primary">settings_input_antenna</span>
+                        </div>
+                        <!-- Node Card -->
+                        <div
+                            class="bg-surface-dark p-4 rounded border border-border-dark flex items-center justify-between group hover:border-primary/50 transition-colors">
+                            <div class="flex items-center gap-3">
+                                <div class="size-2 rounded-full bg-accent-lime shadow-[0_0_8px_rgba(11,218,84,0.6)]">
+                                </div>
+                                <div>
+                                    <p class="text-xs font-bold text-white">NODE_PHYS_089</p>
+                                    <p class="text-[10px] text-white/40">Lajpat Nagar • 12ms Latency</p>
+                                </div>
+                            </div>
+                            <span
+                                class="material-symbols-outlined text-white/20 group-hover:text-primary">settings_input_antenna</span>
+                        </div>
+                        <!-- Node Card (Offline) -->
+                        <div
+                            class="bg-surface-dark p-4 rounded border border-accent-orange/30 flex items-center justify-between group">
+                            <div class="flex items-center gap-3">
+                                <div class="size-2 rounded-full bg-accent-orange animate-pulse"></div>
+                                <div>
+                                    <p class="text-xs font-bold text-white">NODE_VIRT_102</p>
+                                    <p class="text-[10px] text-accent-orange">Signal Lost (14m ago)</p>
+                                </div>
+                            </div>
+                            <span class="material-symbols-outlined text-accent-orange">warning</span>
+                        </div>
+                        <!-- More Nodes... -->
+                        <div
+                            class="bg-surface-dark p-4 rounded border border-border-dark flex items-center justify-between group hover:border-primary/50 transition-colors">
+                            <div class="flex items-center gap-3">
+                                <div class="size-2 rounded-full bg-accent-lime shadow-[0_0_8px_rgba(11,218,84,0.6)]">
+                                </div>
+                                <div>
+                                    <p class="text-xs font-bold text-white">NODE_PHYS_156</p>
+                                    <p class="text-[10px] text-white/40">Rohini Sec-18 • 8ms Latency</p>
+                                </div>
+                            </div>
+                            <span
+                                class="material-symbols-outlined text-white/20 group-hover:text-primary">settings_input_antenna</span>
+                        </div>
+                        <div
+                            class="bg-surface-dark p-4 rounded border border-border-dark flex items-center justify-between group hover:border-primary/50 transition-colors">
+                            <div class="flex items-center gap-3">
+                                <div class="size-2 rounded-full bg-accent-lime shadow-[0_0_8px_rgba(11,218,84,0.6)]">
+                                </div>
+                                <div>
+                                    <p class="text-xs font-bold text-white">NODE_PHYS_201</p>
+                                    <p class="text-[10px] text-white/40">Dwarka Mor • 5ms Latency</p>
+                                </div>
+                            </div>
+                            <span
+                                class="material-symbols-outlined text-white/20 group-hover:text-primary">settings_input_antenna</span>
+                        </div>
+                        <div
+                            class="bg-surface-dark p-4 rounded border border-border-dark flex items-center justify-between group hover:border-primary/50 transition-colors">
+                            <div class="flex items-center gap-3">
+                                <div class="size-2 rounded-full bg-accent-lime shadow-[0_0_8px_rgba(11,218,84,0.6)]">
+                                </div>
+                                <div>
+                                    <p class="text-xs font-bold text-white">NODE_VIRT_005</p>
+                                    <p class="text-[10px] text-white/40">Karol Bagh • Virtual Interpolation</p>
+                                </div>
+                            </div>
+                            <span class="material-symbols-outlined text-white/20 group-hover:text-primary">token</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ML MODEL LOGS TAB -->
+                <div id="content-logs" class="hidden space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div
+                        class="bg-[#0c1618] p-4 rounded-lg border border-border-dark font-mono text-xs h-[400px] overflow-y-auto custom-scrollbar">
+                        <div class="flex gap-2 mb-2">
+                            <span class="text-white/30">2026-01-12 09:42:15</span>
+                            <span class="text-primary">[INFO]</span>
+                            <span class="text-white">Starting retraining cycle for Sector-4 Model...</span>
+                        </div>
+                        <div class="flex gap-2 mb-2">
+                            <span class="text-white/30">2026-01-12 09:42:18</span>
+                            <span class="text-primary">[INFO]</span>
+                            <span class="text-white">Loading dataset: delhi_aqi_historical_v4.csv (4.2GB)</span>
+                        </div>
+                        <div class="flex gap-2 mb-2">
+                            <span class="text-white/30">2026-01-12 09:42:45</span>
+                            <span class="text-primary">[INFO]</span>
+                            <span class="text-white">Preprocessing complete. Features: [pm25, pm10, no2, temp, humidity,
+                                wind_speed]</span>
+                        </div>
+                        <div class="flex gap-2 mb-2">
+                            <span class="text-white/30">2026-01-12 09:43:00</span>
+                            <span class="text-accent-lime">[TRAIN]</span>
+                            <span class="text-white">Epoch 1/50 - loss: 0.4521 - val_loss: 0.4812</span>
+                        </div>
+                        <div class="flex gap-2 mb-2">
+                            <span class="text-white/30">2026-01-12 09:43:15</span>
+                            <span class="text-accent-lime">[TRAIN]</span>
+                            <span class="text-white">Epoch 2/50 - loss: 0.3892 - val_loss: 0.4105</span>
+                        </div>
+                        <div class="flex gap-2 mb-2">
+                            <span class="text-white/30">2026-01-12 09:43:30</span>
+                            <span class="text-accent-lime">[TRAIN]</span>
+                            <span class="text-white">Epoch 3/50 - loss: 0.3105 - val_loss: 0.3340</span>
+                        </div>
+                        <div class="flex gap-2 mb-2">
+                            <span class="text-white/30">2026-01-12 09:43:45</span>
+                            <span class="text-accent-orange">[WARN]</span>
+                            <span class="text-white">Gradient clipping applied at step 450.</span>
+                        </div>
+                        <div class="flex gap-2 mb-2">
+                            <span class="text-white/30">2026-01-12 09:44:00</span>
+                            <span class="text-accent-lime">[TRAIN]</span>
+                            <span class="text-white">Epoch 4/50 - loss: 0.2890 - val_loss: 0.2950</span>
+                        </div>
+                        <div class="flex gap-2 mb-2">
+                            <span class="text-white/30">2026-01-12 09:44:15</span>
+                            <span class="text-primary">[INFO]</span>
+                            <span class="text-white">Model checkpoint saved to /models/v2.1/checkpoint_04.h5</span>
+                        </div>
+                        <div class="flex gap-2 mb-2 animate-pulse">
+                            <span class="text-white/30">2026-01-12 09:44:30</span>
+                            <span class="text-accent-lime">[TRAIN]</span>
+                            <span class="text-white">Epoch 5/50 - Running...</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Hidden PDF Report Structure -->
+    <div id="pdf-report" class="hidden bg-white text-black p-8 max-w-[800px] mx-auto">
+        <div class="flex justify-between items-center border-b-2 border-black pb-4 mb-8">
+            <div>
+                <h1 class="text-2xl font-black uppercase tracking-tight">Technical Analysis Report</h1>
+                <p class="text-sm text-gray-600 font-bold uppercase tracking-widest mt-1">Data Integrity & Sensor
+                    Network</p>
+            </div>
+            <div class="text-right">
+                <p class="text-xs font-bold text-gray-500">GENERATED ON</p>
+                <p class="text-lg font-bold" id="pdf-date">Jan 12, 2026</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-4 mb-8">
+            <div class="p-4 border border-gray-200 rounded text-center">
+                <p class="text-xs font-bold text-gray-500 uppercase">Uptime</p>
+                <p class="text-3xl font-black">99.98%</p>
+            </div>
+            <div class="p-4 border border-gray-200 rounded text-center">
+                <p class="text-xs font-bold text-gray-500 uppercase">Anomalies</p>
+                <p class="text-3xl font-black text-orange-600">12</p>
+            </div>
+            <div class="p-4 border border-gray-200 rounded text-center">
+                <p class="text-xs font-bold text-gray-500 uppercase">Confidence</p>
+                <p class="text-3xl font-black">High</p>
+            </div>
+        </div>
+
+        <h3 class="font-bold uppercase text-sm mb-4 border-b border-gray-200 pb-2">Critical System Events</h3>
+        <table class="w-full text-left text-sm mb-8">
+            <thead class="bg-gray-100 uppercase text-xs font-bold">
+                <tr>
+                    <th class="p-3">Timestamp</th>
+                    <th class="p-3">Event Type</th>
+                    <th class="p-3">Node ID</th>
+                    <th class="p-3">Status</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                <tr>
+                    <td class="p-3 font-mono">08:42:12</td>
+                    <td class="p-3">Data Gap</td>
+                    <td class="p-3">NODE_PHYS_42</td>
+                    <td class="p-3 font-bold text-orange-600">RESOLVED</td>
+                </tr>
+                <tr>
+                    <td class="p-3 font-mono">09:15:00</td>
+                    <td class="p-3">Latency Spike</td>
+                    <td class="p-3">NODE_VIRT_88</td>
+                    <td class="p-3 font-bold text-green-600">STABLE</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="text-center text-xs text-gray-400 uppercase font-bold mt-12 pt-4 border-t border-gray-100">
+            Internal Technical Document • Ward-Wise Intelligence Platform
+        </div>
+    </div>
+
+    <script>
+        // Preloader Removed
+
+        // Map Initialization
+        let map;
+        document.addEventListener('DOMContentLoaded', () => {
+            map = L.map('map-container', {
+                zoomControl: false,
+                attributionControl: false
+            }).setView([28.6139, 77.2090], 11);
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                maxZoom: 19
+            }).addTo(map);
+
+            // Fetch and Render GeoJSON
+            fetch('/delhi_wards.geojson')
+                .then(response => response.json())
+                .then(data => {
+                    L.geoJSON(data, {
+                        style: (feature) => {
+                            // Simulate AQI data
+                            const aqi = Math.floor(Math.random() * 400);
+                            let color = '#00b050'; // Good
+                            if (aqi > 50) color = '#ffff00'; // Satisfactory
+                            if (aqi > 100) color = '#ff7f00'; // Moderate
+                            if (aqi > 200) color = '#ff0000'; // Poor
+                            if (aqi > 300) color = '#8b0000'; // Severe
+
+                            feature.properties.aqi = aqi;
+
+                            return {
+                                fillColor: color,
+                                weight: 1,
+                                opacity: 1,
+                                color: 'white',
+                                dashArray: '3',
+                                fillOpacity: 0.6
+                            };
+                        },
+                        onEachFeature: (feature, layer) => {
+                            layer.on('mouseover', function (e) {
+                                var layer = e.target;
+                                layer.setStyle({
+                                    weight: 3,
+                                    color: '#666',
+                                    dashArray: '',
+                                    fillOpacity: 0.8
+                                });
+                                layer.bringToFront();
+
+                                // Show Tooltip
+                                const tooltip = document.getElementById('map-tooltip');
+                                const tooltipName = document.getElementById('tooltip-name');
+                                const tooltipAqi = document.getElementById('tooltip-aqi');
+
+                                tooltipName.innerText = feature.properties.Ward_Name || 'Unknown Ward';
+                                tooltipAqi.innerText = feature.properties.aqi || '--';
+                                tooltip.classList.remove('hidden');
+                            });
+
+                            layer.on('mousemove', function (e) {
+                                const tooltip = document.getElementById('map-tooltip');
+                                tooltip.style.left = (e.originalEvent.clientX + 15) + 'px';
+                                tooltip.style.top = (e.originalEvent.clientY + 15) + 'px';
+                            });
+
+                            layer.on('mouseout', function (e) {
+                                // Reset Style
+                                e.target.setStyle({
+                                    weight: 1,
+                                    color: 'white',
+                                    dashArray: '3',
+                                    fillOpacity: 0.6
+                                });
+
+                                // Hide Tooltip
+                                document.getElementById('map-tooltip').classList.add('hidden');
+                            });
+
+                            layer.on('click', function (e) {
+                                map.fitBounds(e.target.getBounds());
+                            });
+                        }
+                    }).addTo(map);
+                })
+                .catch(err => console.error('Error loading GeoJSON:', err));
+        });
+
+        // Tab Switching
+        function switchTab(tabId) {
+            ['overview', 'integrity', 'sensor', 'logs'].forEach(id => {
+                const btn = document.getElementById('tab-' + id);
+                const content = document.getElementById('content-' + id);
+
+                if (id === tabId) {
+                    btn.classList.remove('tab-inactive', 'hover:bg-surface-dark/50');
+                    btn.classList.add('tab-active');
+                    content.classList.remove('hidden');
+                } else {
+                    btn.classList.add('tab-inactive', 'hover:bg-surface-dark/50');
+                    btn.classList.remove('tab-active');
+                    content.classList.add('hidden');
+                }
+            });
+        }
+
+        // PDF Export
+        function exportPDF() {
+            const element = document.getElementById('pdf-report');
+            const dateEl = document.getElementById('pdf-date');
+            dateEl.innerText = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+
+            element.classList.remove('hidden');
+
+            const opt = {
+                margin: 10,
+                filename: 'technical_report.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(element).save().then(() => {
+                element.classList.add('hidden');
+            });
+        }
+    </script>
+</body>
+
+</html>

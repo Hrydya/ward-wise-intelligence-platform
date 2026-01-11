@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Executive View - Senior Decision Makers</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&amp;display=swap"
+        rel="stylesheet" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#00cbe6",
+                        "background-light": "#f0f7fa",
+                        "background-dark": "#0e283a",
+                        "card-dark": "#153C54",
+                        "accent-red": "#EF4444",
+                        "accent-yellow": "#FACC15",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        body {
+            font-family: 'Manrope', sans-serif;
+        }
+
+        .donut-gradient {
+            background: conic-gradient(#00cbe6 0% 45%, #FACC15 45% 70%, #EF4444 70% 85%, #395256 85% 100%);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .tab-active {
+            color: #00cbe6;
+            border-bottom-width: 2px;
+            border-color: #00cbe6;
+        }
+
+        .tab-inactive {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .tab-inactive:hover {
+            color: white;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0e283a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #153C54;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #00cbe6;
+        }
+    </style>
+</head>
+
+<body class="bg-background-light dark:bg-background-dark text-white min-h-screen overflow-x-hidden">
+
+    <!-- Preloader Removed -->
+
+    <!-- Map Tooltip -->
+    <div id="map-tooltip"
+        class="fixed hidden z-[9999] bg-black/90 text-white p-3 rounded-lg pointer-events-none border border-white/20 shadow-xl backdrop-blur-md">
+        <div class="font-bold text-sm mb-1" id="tooltip-name">Ward Name</div>
+        <div class="flex items-center gap-2 text-xs">
+            <span class="text-gray-400">AQI:</span>
+            <span class="font-bold text-primary text-lg leading-none" id="tooltip-aqi">--</span>
+        </div>
+    </div>
+
+    <div class="layout-container flex h-full grow flex-col">
+        <!-- Top Navigation -->
+        <header
+            class="flex items-center justify-between whitespace-nowrap border-b border-solid border-white/10 px-10 py-3 bg-background-dark/50 backdrop-blur-md sticky top-0 z-50">
+            <div class="flex items-center gap-8">
+                <div class="flex items-center gap-4 text-primary">
+                    <div class="size-6">
+                        <span class="material-symbols-outlined text-3xl">shield_with_heart</span>
+                    </div>
+                    <h2 class="text-white text-lg font-extrabold leading-tight tracking-tight uppercase">Authority
+                        Portal</h2>
+                </div>
+                <nav class="flex items-center gap-9">
+                    <button id="tab-overview" class="tab-active text-sm font-bold leading-normal pb-1 transition-colors"
+                        onclick="switchTab('overview')">Strategic Overview</button>
+                    <button id="tab-zone" class="tab-inactive text-sm font-medium leading-normal pb-1 transition-colors"
+                        onclick="switchTab('zone')">Zone Response</button>
+                    <button id="tab-policy"
+                        class="tab-inactive text-sm font-medium leading-normal pb-1 transition-colors"
+                        onclick="switchTab('policy')">Policy Impact</button>
+                    <button id="tab-enforcement"
+                        class="tab-inactive text-sm font-medium leading-normal pb-1 transition-colors"
+                        onclick="switchTab('enforcement')">Enforcement</button>
+                </nav>
+            </div>
+            <div class="flex flex-1 justify-end gap-6 items-center">
+                <div
+                    class="flex items-center gap-2 bg-accent-red/10 px-3 py-1.5 rounded-lg border border-accent-red/20">
+                    <span class="material-symbols-outlined text-accent-red text-sm">emergency</span>
+                    <span class="text-accent-red text-xs font-bold uppercase tracking-wider">High Alert Status</span>
+                </div>
+                <div class="h-8 w-px bg-white/10"></div>
+                <div class="flex items-center gap-3">
+                    <div class="text-right">
+                        <p class="text-xs font-bold">Admin Council</p>
+                        <p class="text-[10px] text-white/50 uppercase tracking-tighter">Senior Decision Maker</p>
+                    </div>
+                    <div
+                        class="bg-primary/20 rounded-full size-10 flex items-center justify-center border border-primary/30">
+                        <span class="material-symbols-outlined text-primary">account_circle</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="max-w-[1440px] mx-auto w-full p-8 flex flex-col gap-8">
+
+            <!-- STRATEGIC OVERVIEW TAB -->
+            <div id="content-overview"
+                class="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <!-- Executive Heading -->
+                <div class="flex flex-wrap justify-between items-end gap-4 border-l-4 border-primary pl-6">
+                    <div class="flex flex-col gap-1">
+                        <h1 class="text-white text-4xl font-black leading-tight tracking-tight">Executive Strategic
+                            Overview</h1>
+                        <div class="flex items-center gap-4">
+                            <p class="text-white/60 text-lg font-medium">City-wide Air Quality Snapshot</p>
+                            <span class="w-1.5 h-1.5 rounded-full bg-white/30"></span>
+                            <div class="flex items-center gap-2">
+                                <span class="text-accent-red font-bold">Global AQI: 142</span>
+                                <span class="material-symbols-outlined text-accent-red text-sm">trending_up</span>
+                                <span class="text-accent-red text-sm font-bold">Worsening (+12%)</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex gap-3">
+                        <button onclick="exportPDF()"
+                            class="flex items-center gap-2 px-5 h-12 bg-white/5 hover:bg-white/10 text-white rounded-lg border border-white/10 transition-all font-bold text-sm">
+                            <span class="material-symbols-outlined text-sm">file_download</span>
+                            Export Strategy Brief
+                        </button>
+                        <button
+                            class="flex items-center gap-2 px-6 h-12 bg-primary text-background-dark hover:brightness-110 rounded-lg transition-all font-black text-sm uppercase tracking-wider">
+                            <span class="material-symbols-outlined text-sm">bolt</span>
+                            Execute Intervention
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Major KPIs Row -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                    <div class="flex flex-col gap-4 rounded-xl p-6 bg-card-dark border border-white/5 shadow-xl">
+                        <div class="flex justify-between items-start">
+                            <p class="text-white/60 text-sm font-bold uppercase tracking-widest">Average AQI</p>
+                            <span class="material-symbols-outlined text-primary">sensors</span>
+                        </div>
+                        <div class="flex items-baseline gap-2">
+                            <p class="text-white text-4xl font-black">156</p>
+                            <p class="text-accent-yellow text-sm font-bold">Moderate</p>
+                        </div>
+                        <div class="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
+                            <div class="bg-accent-yellow h-full w-3/5"></div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-4 rounded-xl p-6 bg-card-dark border border-white/5 shadow-xl">
+                        <div class="flex justify-between items-start">
+                            <p class="text-white/60 text-sm font-bold uppercase tracking-widest">% Severe Wards</p>
+                            <span class="material-symbols-outlined text-accent-red">warning</span>
+                        </div>
+                        <div class="flex items-baseline gap-2">
+                            <p class="text-white text-4xl font-black">12%</p>
+                            <p class="text-accent-red text-sm font-bold">Critical Risk</p>
+                        </div>
+                        <div class="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
+                            <div class="bg-accent-red h-full w-[12%]"></div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-4 rounded-xl p-6 bg-card-dark border border-white/5 shadow-xl">
+                        <div class="flex justify-between items-start">
+                            <p class="text-white/60 text-sm font-bold uppercase tracking-widest">Active Violations</p>
+                            <span class="material-symbols-outlined text-accent-yellow">gavel</span>
+                        </div>
+                        <div class="flex items-baseline gap-2">
+                            <p class="text-white text-4xl font-black">43</p>
+                            <p class="text-primary text-sm font-bold">+8 Today</p>
+                        </div>
+                        <div class="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
+                            <div class="bg-primary h-full w-2/3"></div>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-4 rounded-xl p-6 bg-card-dark border border-white/5 shadow-xl">
+                        <div class="flex justify-between items-start">
+                            <p class="text-white/60 text-sm font-bold uppercase tracking-widest">Priority Index</p>
+                            <span class="material-symbols-outlined text-white/40">leaderboard</span>
+                        </div>
+                        <div class="flex items-baseline gap-2">
+                            <p class="text-white text-4xl font-black">7.8<span class="text-xl opacity-40">/10</span></p>
+                            <p class="text-white/40 text-sm font-bold">Avg. urgency</p>
+                        </div>
+                        <div class="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
+                            <div class="bg-white/40 h-full w-4/5"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Content Area -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <!-- Left: Priority Wards -->
+                    <div class="lg:col-span-2 flex flex-col gap-4">
+                        <div class="flex justify-between items-center">
+                            <h2 class="text-xl font-extrabold uppercase tracking-tight flex items-center gap-2">
+                                <span class="material-symbols-outlined text-primary">priority_high</span>
+                                Top 5 Priority Wards
+                            </h2>
+                            <span class="text-white/40 text-xs font-bold uppercase">Ranked by Composite Risk
+                                Score</span>
+                        </div>
+                        <div class="overflow-hidden rounded-xl border border-white/10 bg-card-dark/30">
+                            <table class="w-full text-left">
+                                <thead>
+                                    <tr class="bg-white/5 border-b border-white/10">
+                                        <th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-white/50">
+                                            Rank</th>
+                                        <th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-white/50">
+                                            Ward Name</th>
+                                        <th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-white/50">
+                                            Score</th>
+                                        <th class="px-6 py-4 text-xs font-bold uppercase tracking-widest text-white/50">
+                                            Status</th>
+                                        <th
+                                            class="px-6 py-4 text-right text-xs font-bold uppercase tracking-widest text-white/50">
+                                            Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-white/5">
+                                    <tr class="hover:bg-white/5 transition-colors group cursor-pointer"
+                                        onclick="focusWard('Ward 12')">
+                                        <td class="px-6 py-5 font-black text-white/40">01</td>
+                                        <td class="px-6 py-5 font-bold">Ward 12 - Industrial East</td>
+                                        <td class="px-6 py-5">
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-accent-red font-black">94</span>
+                                                <div class="flex gap-0.5">
+                                                    <div class="w-1 h-3 bg-accent-red rounded-full"></div>
+                                                    <div class="w-1 h-3 bg-accent-red rounded-full"></div>
+                                                    <div class="w-1 h-3 bg-accent-red rounded-full"></div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-5">
+                                            <span
+                                                class="px-2 py-1 rounded bg-accent-red/20 text-accent-red text-[10px] font-black uppercase">Severe</span>
+                                        </td>
+                                        <td class="px-6 py-5 text-right">
+                                            <button
+                                                class="bg-primary/10 group-hover:bg-primary text-primary group-hover:text-background-dark px-4 py-2 rounded-lg text-xs font-black transition-all">DRILL
+                                                DOWN</button>
+                                        </td>
+                                    </tr>
+                                    <tr class="hover:bg-white/5 transition-colors group cursor-pointer"
+                                        onclick="focusWard('Ward 19')">
+                                        <td class="px-6 py-5 font-black text-white/40">02</td>
+                                        <td class="px-6 py-5 font-bold">Ward 19 - Central Hub</td>
+                                        <td class="px-6 py-5">
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-accent-red font-black">88</span>
+                                                <div class="flex gap-0.5">
+                                                    <div class="w-1 h-3 bg-accent-red rounded-full"></div>
+                                                    <div class="w-1 h-3 bg-accent-red rounded-full"></div>
+                                                    <div class="w-1 h-3 bg-white/20 rounded-full"></div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-5">
+                                            <span
+                                                class="px-2 py-1 rounded bg-accent-red/20 text-accent-red text-[10px] font-black uppercase">Critical</span>
+                                        </td>
+                                        <td class="px-6 py-5 text-right">
+                                            <button
+                                                class="bg-primary/10 group-hover:bg-primary text-primary group-hover:text-background-dark px-4 py-2 rounded-lg text-xs font-black transition-all">DRILL
+                                                DOWN</button>
+                                        </td>
+                                    </tr>
+                                    <tr class="hover:bg-white/5 transition-colors group cursor-pointer"
+                                        onclick="focusWard('Ward 08')">
+                                        <td class="px-6 py-5 font-black text-white/40">03</td>
+                                        <td class="px-6 py-5 font-bold">Ward 08 - North Logistics</td>
+                                        <td class="px-6 py-5">
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-accent-yellow font-black">76</span>
+                                                <div class="flex gap-0.5">
+                                                    <div class="w-1 h-3 bg-accent-yellow rounded-full"></div>
+                                                    <div class="w-1 h-3 bg-accent-yellow rounded-full"></div>
+                                                    <div class="w-1 h-3 bg-white/20 rounded-full"></div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-5">
+                                            <span
+                                                class="px-2 py-1 rounded bg-accent-yellow/20 text-accent-yellow text-[10px] font-black uppercase">Unhealthy</span>
+                                        </td>
+                                        <td class="px-6 py-5 text-right">
+                                            <button
+                                                class="bg-primary/10 group-hover:bg-primary text-primary group-hover:text-background-dark px-4 py-2 rounded-lg text-xs font-black transition-all">DRILL
+                                                DOWN</button>
+                                        </td>
+                                    </tr>
+                                    <tr class="hover:bg-white/5 transition-colors group cursor-pointer"
+                                        onclick="focusWard('Ward 42')">
+                                        <td class="px-6 py-5 font-black text-white/40">04</td>
+                                        <td class="px-6 py-5 font-bold">Ward 42 - South Terminal</td>
+                                        <td class="px-6 py-5">
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-accent-yellow font-black">72</span>
+                                                <div class="flex gap-0.5">
+                                                    <div class="w-1 h-3 bg-accent-yellow rounded-full"></div>
+                                                    <div class="w-1 h-3 bg-accent-yellow rounded-full"></div>
+                                                    <div class="w-1 h-3 bg-white/20 rounded-full"></div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-5">
+                                            <span
+                                                class="px-2 py-1 rounded bg-accent-yellow/20 text-accent-yellow text-[10px] font-black uppercase">Unhealthy</span>
+                                        </td>
+                                        <td class="px-6 py-5 text-right">
+                                            <button
+                                                class="bg-primary/10 group-hover:bg-primary text-primary group-hover:text-background-dark px-4 py-2 rounded-lg text-xs font-black transition-all">DRILL
+                                                DOWN</button>
+                                        </td>
+                                    </tr>
+                                    <tr class="hover:bg-white/5 transition-colors group cursor-pointer"
+                                        onclick="focusWard('Ward 33')">
+                                        <td class="px-6 py-5 font-black text-white/40">05</td>
+                                        <td class="px-6 py-5 font-bold">Ward 33 - Western Port</td>
+                                        <td class="px-6 py-5">
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-primary font-black">61</span>
+                                                <div class="flex gap-0.5">
+                                                    <div class="w-1 h-3 bg-primary rounded-full"></div>
+                                                    <div class="w-1 h-3 bg-white/20 rounded-full"></div>
+                                                    <div class="w-1 h-3 bg-white/20 rounded-full"></div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-5">
+                                            <span
+                                                class="px-2 py-1 rounded bg-primary/20 text-primary text-[10px] font-black uppercase">Moderate</span>
+                                        </td>
+                                        <td class="px-6 py-5 text-right">
+                                            <button
+                                                class="bg-primary/10 group-hover:bg-primary text-primary group-hover:text-background-dark px-4 py-2 rounded-lg text-xs font-black transition-all">DRILL
+                                                DOWN</button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <!-- Right: City Distribution -->
+                    <div class="flex flex-col gap-4">
+                        <h2 class="text-xl font-extrabold uppercase tracking-tight flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary">pie_chart</span>
+                            City Distribution
+                        </h2>
+                        <div
+                            class="bg-card-dark rounded-xl p-8 border border-white/5 shadow-xl flex flex-col items-center justify-center grow">
+                            <div class="relative size-56">
+                                <div class="size-full rounded-full donut-gradient flex items-center justify-center p-8">
+                                    <div
+                                        class="size-full rounded-full bg-card-dark flex flex-col items-center justify-center">
+                                        <p class="text-3xl font-black">124</p>
+                                        <p
+                                            class="text-[10px] text-white/50 uppercase font-bold tracking-widest leading-none">
+                                            Total Wards</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-8 w-full grid grid-cols-2 gap-4">
+                                <div class="flex items-center gap-2">
+                                    <div class="size-2 rounded-full bg-primary"></div>
+                                    <span class="text-xs font-bold text-white/60">Moderate (45%)</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <div class="size-2 rounded-full bg-accent-yellow"></div>
+                                    <span class="text-xs font-bold text-white/60">Poor (25%)</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <div class="size-2 rounded-full bg-accent-red"></div>
+                                    <span class="text-xs font-bold text-white/60">Severe (15%)</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <div class="size-2 rounded-full bg-white/20"></div>
+                                    <span class="text-xs font-bold text-white/60">Good (15%)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom: Ward Priority Index Map -->
+                <div class="flex flex-col gap-4">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-xl font-extrabold uppercase tracking-tight flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary">map</span>
+                            Ward Priority Hotspots
+                        </h2>
+                        <div class="flex gap-4">
+                            <div class="flex items-center gap-2">
+                                <div class="w-3 h-3 rounded bg-accent-red shadow-[0_0_10px_rgba(239,68,68,0.5)]"></div>
+                                <span class="text-xs font-bold uppercase tracking-tighter opacity-70">Immediate
+                                    Intervention</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <div class="w-3 h-3 rounded bg-accent-yellow shadow-[0_0_10px_rgba(250,204,21,0.5)]">
+                                </div>
+                                <span class="text-xs font-bold uppercase tracking-tighter opacity-70">High
+                                    Surveillance</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        class="h-[400px] w-full bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 relative overflow-hidden">
+                        <div id="map-container" class="h-full w-full z-10"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ZONE RESPONSE TAB -->
+            <div id="content-zone" class="hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div class="lg:col-span-2 space-y-6">
+                        <div class="bg-card-dark rounded-xl p-6 border border-white/5">
+                            <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+                                <span class="material-symbols-outlined text-primary">emergency_home</span>
+                                Active Response Matrix
+                            </h3>
+                            <table class="w-full text-left text-sm">
+                                <thead class="bg-white/5 text-white/50 uppercase text-xs">
+                                    <tr>
+                                        <th class="p-4">Zone ID</th>
+                                        <th class="p-4">Incident Type</th>
+                                        <th class="p-4">Team Status</th>
+                                        <th class="p-4">ETA</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-white/5">
+                                    <tr>
+                                        <td class="p-4 font-bold">Z-12 (Ind. East)</td>
+                                        <td class="p-4 text-accent-red">Chemical Leak</td>
+                                        <td class="p-4"><span
+                                                class="bg-accent-red/20 text-accent-red px-2 py-1 rounded text-xs font-bold">ON
+                                                SITE</span></td>
+                                        <td class="p-4">--</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-4 font-bold">Z-04 (Central)</td>
+                                        <td class="p-4 text-accent-yellow">Traffic Gridlock</td>
+                                        <td class="p-4"><span
+                                                class="bg-accent-yellow/20 text-accent-yellow px-2 py-1 rounded text-xs font-bold">DISPATCHED</span>
+                                        </td>
+                                        <td class="p-4">12m</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-4 font-bold">Z-08 (North)</td>
+                                        <td class="p-4 text-white/70">Dust Control</td>
+                                        <td class="p-4"><span
+                                                class="bg-primary/20 text-primary px-2 py-1 rounded text-xs font-bold">SCHEDULED</span>
+                                        </td>
+                                        <td class="p-4">45m</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="space-y-6">
+                        <div class="bg-card-dark rounded-xl p-6 border border-white/5">
+                            <h3 class="text-lg font-bold mb-4">Resource Allocation</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <div class="flex justify-between text-xs mb-1">
+                                        <span class="text-white/60">Smog Guns</span>
+                                        <span class="font-bold">85% In Use</span>
+                                    </div>
+                                    <div class="h-2 bg-white/10 rounded-full overflow-hidden">
+                                        <div class="h-full bg-primary w-[85%]"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-xs mb-1">
+                                        <span class="text-white/60">Traffic Marshals</span>
+                                        <span class="font-bold">92% Deployed</span>
+                                    </div>
+                                    <div class="h-2 bg-white/10 rounded-full overflow-hidden">
+                                        <div class="h-full bg-accent-yellow w-[92%]"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="flex justify-between text-xs mb-1">
+                                        <span class="text-white/60">Emergency Units</span>
+                                        <span class="font-bold">40% Standby</span>
+                                    </div>
+                                    <div class="h-2 bg-white/10 rounded-full overflow-hidden">
+                                        <div class="h-full bg-accent-red w-[60%]"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- POLICY IMPACT TAB -->
+            <div id="content-policy" class="hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="bg-card-dark rounded-xl p-8 border border-white/5">
+                        <h3 class="text-xl font-bold mb-2">Projected Impact: GRAP IV</h3>
+                        <p class="text-white/50 text-sm mb-6">Simulation based on current meteorological forecast.</p>
+                        <div class="h-64 flex items-end gap-2 px-4 border-b border-l border-white/10 relative">
+                            <!-- Bars -->
+                            <div class="w-1/6 bg-white/10 h-[80%] rounded-t relative group">
+                                <span class="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-bold">Now</span>
+                            </div>
+                            <div class="w-1/6 bg-primary/30 h-[75%] rounded-t"></div>
+                            <div class="w-1/6 bg-primary/50 h-[65%] rounded-t"></div>
+                            <div class="w-1/6 bg-primary/70 h-[50%] rounded-t"></div>
+                            <div class="w-1/6 bg-primary h-[40%] rounded-t relative group">
+                                <span
+                                    class="absolute -top-6 left-1/2 -translate-x-1/2 text-xs font-bold text-primary">-50%</span>
+                            </div>
+                            <div class="w-1/6 bg-primary h-[35%] rounded-t"></div>
+                        </div>
+                        <div class="flex justify-between mt-2 text-xs text-white/40 uppercase font-bold">
+                            <span>Day 1</span>
+                            <span>Day 7</span>
+                        </div>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="bg-white/5 p-6 rounded-xl border border-white/10">
+                            <h4 class="font-bold text-lg mb-2 text-accent-yellow">Odd-Even Scheme</h4>
+                            <p class="text-sm text-white/60 mb-4">Projected reduction in PM2.5: <strong
+                                    class="text-white">14%</strong></p>
+                            <button
+                                class="w-full py-3 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-bold uppercase tracking-widest transition-colors">Simulate
+                                Scenario</button>
+                        </div>
+                        <div class="bg-white/5 p-6 rounded-xl border border-white/10">
+                            <h4 class="font-bold text-lg mb-2 text-accent-red">Construction Ban (Total)</h4>
+                            <p class="text-sm text-white/60 mb-4">Projected reduction in PM10: <strong
+                                    class="text-white">28%</strong></p>
+                            <button
+                                class="w-full py-3 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-bold uppercase tracking-widest transition-colors">Simulate
+                                Scenario</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ENFORCEMENT TAB -->
+            <div id="content-enforcement" class="hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div class="lg:col-span-2">
+                        <div class="bg-card-dark rounded-xl overflow-hidden border border-white/5">
+                            <div class="p-6 border-b border-white/5 flex justify-between items-center">
+                                <h3 class="font-bold text-lg">Live Violation Feed</h3>
+                                <span class="flex h-2 w-2 relative">
+                                    <span
+                                        class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                    <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                                </span>
+                            </div>
+                            <div class="divide-y divide-white/5">
+                                <div class="p-4 hover:bg-white/5 transition-colors flex justify-between items-center">
+                                    <div>
+                                        <p class="font-bold text-sm">Illegal Waste Burning</p>
+                                        <p class="text-xs text-white/50">Ward 44 • 2 mins ago</p>
+                                    </div>
+                                    <span
+                                        class="text-xs font-bold bg-red-500/20 text-red-500 px-2 py-1 rounded">PENDING</span>
+                                </div>
+                                <div class="p-4 hover:bg-white/5 transition-colors flex justify-between items-center">
+                                    <div>
+                                        <p class="font-bold text-sm">Construction Dust</p>
+                                        <p class="text-xs text-white/50">Ward 12 • 15 mins ago</p>
+                                    </div>
+                                    <span
+                                        class="text-xs font-bold bg-yellow-500/20 text-yellow-500 px-2 py-1 rounded">ASSIGNED</span>
+                                </div>
+                                <div class="p-4 hover:bg-white/5 transition-colors flex justify-between items-center">
+                                    <div>
+                                        <p class="font-bold text-sm">Industrial Emission</p>
+                                        <p class="text-xs text-white/50">Ward 08 • 42 mins ago</p>
+                                    </div>
+                                    <span
+                                        class="text-xs font-bold bg-green-500/20 text-green-500 px-2 py-1 rounded">RESOLVED</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="space-y-6">
+                        <div
+                            class="bg-gradient-to-br from-primary/20 to-primary/5 p-6 rounded-xl border border-primary/20 text-center">
+                            <h4 class="text-primary font-bold uppercase tracking-widest text-xs mb-2">Total Challans
+                                Issued</h4>
+                            <p class="text-5xl font-black text-white mb-2">1,248</p>
+                            <p class="text-xs text-white/50">Last 24 Hours</p>
+                        </div>
+                        <div
+                            class="bg-gradient-to-br from-accent-red/20 to-accent-red/5 p-6 rounded-xl border border-accent-red/20 text-center">
+                            <h4 class="text-accent-red font-bold uppercase tracking-widest text-xs mb-2">Revenue
+                                Collected</h4>
+                            <p class="text-5xl font-black text-white mb-2">₹4.2L</p>
+                            <p class="text-xs text-white/50">Environmental Compensation</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <footer
+            class="mt-auto border-t border-white/5 py-6 px-10 flex justify-between items-center text-white/40 text-[10px] font-bold uppercase tracking-widest">
+            <div class="flex items-center gap-6">
+                <span>System Status: Optimal</span>
+                <span>Uptime: 99.9%</span>
+                <span>Data Refresh: 45s ago</span>
+            </div>
+            <div>
+                © 2024 Environment Authority - Secure Management Portal
+            </div>
+        </footer>
+    </div>
+
+    <!-- Hidden PDF Report Structure -->
+    <div id="pdf-report" class="hidden bg-white text-black p-8 max-w-[800px] mx-auto">
+        <div class="flex justify-between items-center border-b-2 border-black pb-4 mb-8">
+            <div>
+                <h1 class="text-3xl font-black uppercase tracking-tight">Strategy Brief</h1>
+                <p class="text-sm text-gray-600 font-bold uppercase tracking-widest mt-1">Authority Command Center •
+                    Executive Summary</p>
+            </div>
+            <div class="text-right">
+                <p class="text-xs font-bold text-gray-500">GENERATED ON</p>
+                <p class="text-lg font-bold" id="pdf-date">Jan 12, 2026</p>
+            </div>
+        </div>
+
+        <div class="mb-8 p-4 bg-gray-100 rounded-lg border-l-4 border-black">
+            <h3 class="font-bold uppercase text-sm mb-2">Executive Assessment</h3>
+            <p class="text-sm leading-relaxed">
+                City-wide AQI levels have deteriorated by <strong>12%</strong> in the last 24 hours.
+                Critical hotspots are concentrated in <strong>Industrial East</strong> and <strong>Central Hub</strong>
+                zones.
+                Immediate intervention (GRAP Stage III) is recommended to curb vehicular emissions and construction
+                dust.
+            </p>
+        </div>
+
+        <div class="grid grid-cols-3 gap-4 mb-8">
+            <div class="p-4 border border-gray-200 rounded text-center">
+                <p class="text-xs font-bold text-gray-500 uppercase">Avg AQI</p>
+                <p class="text-3xl font-black">156</p>
+            </div>
+            <div class="p-4 border border-gray-200 rounded text-center">
+                <p class="text-xs font-bold text-gray-500 uppercase">Critical Wards</p>
+                <p class="text-3xl font-black text-red-600">12%</p>
+            </div>
+            <div class="p-4 border border-gray-200 rounded text-center">
+                <p class="text-xs font-bold text-gray-500 uppercase">Violations</p>
+                <p class="text-3xl font-black">43</p>
+            </div>
+        </div>
+
+        <h3 class="font-black uppercase text-sm mb-4 border-b border-gray-200 pb-2">Priority Action List</h3>
+        <table class="w-full text-left text-sm mb-8">
+            <thead class="bg-gray-100 uppercase text-xs font-bold">
+                <tr>
+                    <th class="p-3">Rank</th>
+                    <th class="p-3">Ward</th>
+                    <th class="p-3">Score</th>
+                    <th class="p-3">Status</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                <tr>
+                    <td class="p-3 font-bold">01</td>
+                    <td class="p-3">Ward 12 - Industrial East</td>
+                    <td class="p-3 font-bold text-red-600">94</td>
+                    <td class="p-3"><span
+                            class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold">SEVERE</span></td>
+                </tr>
+                <tr>
+                    <td class="p-3 font-bold">02</td>
+                    <td class="p-3">Central Hub - Metro</td>
+                    <td class="p-3 font-bold text-red-600">88</td>
+                    <td class="p-3"><span
+                            class="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold">CRITICAL</span></td>
+                </tr>
+                <tr>
+                    <td class="p-3 font-bold">03</td>
+                    <td class="p-3">North Logistics Park</td>
+                    <td class="p-3 font-bold text-yellow-600">76</td>
+                    <td class="p-3"><span
+                            class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-bold">UNHEALTHY</span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="text-center text-xs text-gray-400 uppercase font-bold mt-12 pt-4 border-t border-gray-100">
+            Confidential • Internal Use Only • Ward-Wise Intelligence Platform
+        </div>
+    </div>
+
+    <script>
+        // Preloader Removed
+
+        // Map Logic
+        let map;
+        let wardLayers = {};
+
+        document.addEventListener('DOMContentLoaded', () => {
+            map = L.map('map-container', {
+                zoomControl: false,
+                attributionControl: false,
+                scrollWheelZoom: false
+            }).setView([28.6139, 77.2090], 11);
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                maxZoom: 19
+            }).addTo(map);
+
+            // Fetch and Render GeoJSON
+            fetch('/delhi_wards.geojson')
+                .then(response => response.json())
+                .then(data => {
+                    L.geoJSON(data, {
+                        style: (feature) => {
+                            // Simulate AQI data
+                            const aqi = Math.floor(Math.random() * 400);
+                            let color = '#00b050'; // Good
+                            if (aqi > 50) color = '#ffff00'; // Satisfactory
+                            if (aqi > 100) color = '#ff7f00'; // Moderate
+                            if (aqi > 200) color = '#ff0000'; // Poor
+                            if (aqi > 300) color = '#8b0000'; // Severe
+
+                            // Store AQI in feature for tooltip
+                            feature.properties.aqi = aqi;
+
+                            return {
+                                fillColor: color,
+                                weight: 1,
+                                opacity: 1,
+                                color: 'white',
+                                dashArray: '3',
+                                fillOpacity: 0.6
+                            };
+                        },
+                        onEachFeature: (feature, layer) => {
+                            const wardName = feature.properties.Ward_Name;
+                            if (wardName) {
+                                wardLayers[wardName] = layer;
+                            }
+
+                            layer.on('mouseover', function (e) {
+                                var layer = e.target;
+                                layer.setStyle({
+                                    weight: 3,
+                                    color: '#666',
+                                    dashArray: '',
+                                    fillOpacity: 0.8
+                                });
+                                layer.bringToFront();
+
+                                // Show Tooltip
+                                const tooltip = document.getElementById('map-tooltip');
+                                const tooltipName = document.getElementById('tooltip-name');
+                                const tooltipAqi = document.getElementById('tooltip-aqi');
+
+                                tooltipName.innerText = feature.properties.Ward_Name || 'Unknown Ward';
+                                tooltipAqi.innerText = feature.properties.aqi || '--';
+                                tooltip.classList.remove('hidden');
+                            });
+
+                            layer.on('mousemove', function (e) {
+                                const tooltip = document.getElementById('map-tooltip');
+                                tooltip.style.left = (e.originalEvent.clientX + 15) + 'px';
+                                tooltip.style.top = (e.originalEvent.clientY + 15) + 'px';
+                            });
+
+                            layer.on('mouseout', function (e) {
+                                // Reset Style
+                                e.target.setStyle({
+                                    weight: 1,
+                                    color: 'white',
+                                    dashArray: '3',
+                                    fillOpacity: 0.6
+                                });
+
+                                // Hide Tooltip
+                                document.getElementById('map-tooltip').classList.add('hidden');
+                            });
+
+                            layer.on('click', function (e) {
+                                map.fitBounds(e.target.getBounds());
+                            });
+                        }
+                    }).addTo(map);
+                })
+                .catch(err => console.error('Error loading GeoJSON:', err));
+        });
+
+        // Focus Ward from Table
+        window.focusWard = (wardName) => {
+            // Find layer by partial name match if exact match fails
+            let targetLayer = wardLayers[wardName];
+
+            if (!targetLayer) {
+                // Try partial match
+                const key = Object.keys(wardLayers).find(k => k.includes(wardName) || wardName.includes(k));
+                if (key) targetLayer = wardLayers[key];
+            }
+
+            if (targetLayer) {
+                map.fitBounds(targetLayer.getBounds());
+                targetLayer.setStyle({
+                    weight: 3,
+                    color: '#EF4444',
+                    dashArray: '',
+                    fillOpacity: 0.9
+                });
+                setTimeout(() => {
+                    targetLayer.setStyle({
+                        weight: 1,
+                        color: 'white',
+                        dashArray: '3',
+                        fillOpacity: 0.6
+                    });
+                }, 2000);
+            } else {
+                console.warn('Ward not found on map:', wardName);
+            }
+        };
+
+        // Tab Logic
+        function switchTab(tabId) {
+            ['overview', 'zone', 'policy', 'enforcement'].forEach(id => {
+                const btn = document.getElementById('tab-' + id);
+                const content = document.getElementById('content-' + id);
+
+                if (id === tabId) {
+                    btn.classList.remove('tab-inactive');
+                    btn.classList.add('tab-active');
+                    content.classList.remove('hidden');
+                } else {
+                    btn.classList.add('tab-inactive');
+                    btn.classList.remove('tab-active');
+                    content.classList.add('hidden');
+                }
+            });
+        }
+
+        // PDF Export
+        function exportPDF() {
+            const element = document.getElementById('pdf-report');
+            const dateEl = document.getElementById('pdf-date');
+            dateEl.innerText = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+
+            element.classList.remove('hidden');
+
+            const opt = {
+                margin: 10,
+                filename: 'executive_strategy_brief.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(element).save().then(() => {
+                element.classList.add('hidden');
+            });
+        }
+    </script>
+</body>
+
+</html>

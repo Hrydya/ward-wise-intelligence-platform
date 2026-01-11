@@ -1,0 +1,8 @@
+
+{
+  "name": "Ward-Wise Intelligence Platform",
+  "description": "A hyper-local air quality intelligence platform for Delhi, providing ward-by-ward pollution decoding, real-time tracking, and AI-powered policy simulation for authorities and citizens.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}

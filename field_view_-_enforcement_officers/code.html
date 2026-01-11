@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Field View - Enforcement Officers</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;display=swap" rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#00aaff",
+                        "background-light": "#fafafa",
+                        "background-dark": "#152628", // Oceanic Teal Base
+                        "slate-teal": "#2A4B52",
+                        "crimson-urgency": "#FF3B30",
+                        "action-green": "#64FFDA",
+                        "closed-emerald": "#288E52"
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #2A4B52;
+            border-radius: 10px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+    </style>
+</head>
+
+<body class="bg-background-light dark:bg-background-dark text-white min-h-screen flex flex-col font-display">
+
+    <!-- Map Tooltip -->
+    <div id="map-tooltip"
+        class="fixed hidden z-[9999] bg-black/90 text-white p-3 rounded-lg pointer-events-none border border-white/20 shadow-xl backdrop-blur-md">
+        <div class="font-bold text-sm mb-1" id="tooltip-name">Ward Name</div>
+        <div class="flex items-center gap-2 text-xs">
+            <span class="text-gray-400">AQI:</span>
+            <span class="font-bold text-primary text-lg leading-none" id="tooltip-aqi">--</span>
+        </div>
+    </div>
+
+    <!-- Top Navigation Bar -->
+    <header
+        class="flex items-center justify-between border-b border-[#2A4B52] bg-background-dark/80 backdrop-blur-md px-8 py-3 z-50">
+        <div class="flex items-center gap-8">
+            <div class="flex items-center gap-3">
+                <div class="bg-primary p-1.5 rounded-lg">
+                    <span class="material-symbols-outlined text-background-dark text-xl font-bold">query_stats</span>
+                </div>
+                <h1 class="text-lg font-bold tracking-tight">AQI Enforcement</h1>
+            </div>
+            <nav class="flex items-center gap-6">
+                <a class="text-sm font-medium text-primary border-b-2 border-primary pb-1" href="#">Field View</a>
+                <a class="text-sm font-medium text-slate-400 hover:text-white transition-colors" href="#">Incident
+                    Map</a>
+                <a class="text-sm font-medium text-slate-400 hover:text-white transition-colors" href="#">History</a>
+            </nav>
+        </div>
+        <div class="flex items-center gap-4">
+            <div class="flex items-center bg-slate-teal/40 px-3 py-1.5 rounded-lg border border-slate-teal/50">
+                <span class="material-symbols-outlined text-primary text-sm mr-2">location_on</span>
+                <span class="text-xs font-bold uppercase tracking-wider text-slate-200">Ward 14: Central District</span>
+            </div>
+            <div class="flex gap-2">
+                <button class="p-2 hover:bg-slate-teal/50 rounded-lg transition-colors relative">
+                    <span class="material-symbols-outlined text-slate-300">notifications</span>
+                    <span
+                        class="absolute top-2 right-2 w-2 h-2 bg-crimson-urgency rounded-full border-2 border-background-dark"></span>
+                </button>
+                <div class="w-8 h-8 rounded-full bg-cover bg-center border border-slate-teal"
+                    data-alt="Officer profile picture"
+                    style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAH0aJhCkFDEmT8oke3vtxghtnqKSKArGk9xJb_h9In0S9e1PUUZcBiTMNGPMdstfA4GqW2wb6N6JUH8O95qJFpXwtTkZiKoW7RVIGQh0iG_kjl2QRF0aQOpE4p0TfZIorcI8VqsaPIiwlk4x4DdARMosUzhv5cJ9Dswjub47w0asffgvaGsjsdetnZgBLZGOZZs5-g7CR9-8HS3prmQsZIzRtvroAQU-hznRcvQYKdOw9hCh-voAf1iNGV3bAEXkgCJ-HCAeu2SIk')">
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Map Section (Top) -->
+    <section id="map-section"
+        class="h-[35vh] w-full relative border-b border-[#2A4B52] bg-background-dark group overflow-hidden transition-all duration-500 ease-in-out">
+        <div id="map-container" class="w-full h-full z-0"></div>
+
+        <!-- Map Overlay Controls -->
+        <div
+            class="absolute inset-0 bg-gradient-to-t from-background-dark/80 to-transparent flex items-end p-4 pointer-events-none">
+            <div class="flex items-center justify-between w-full pointer-events-auto">
+                <div
+                    class="bg-background-dark/90 backdrop-blur-md px-4 py-2 rounded-lg border border-slate-teal/50 flex items-center gap-4 shadow-lg">
+                    <div class="flex items-center gap-2">
+                        <span class="status-dot bg-crimson-urgency animate-pulse"></span>
+                        <span class="text-xs font-bold text-slate-300">3 Urgent</span>
+                    </div>
+                    <div class="flex items-center gap-2 border-l border-slate-teal pl-4">
+                        <span class="status-dot bg-primary"></span>
+                        <span class="text-xs font-bold text-slate-300">8 Routine</span>
+                    </div>
+                    <div class="flex items-center gap-2 border-l border-slate-teal pl-4">
+                        <span class="status-dot bg-action-green"></span>
+                        <span class="text-xs font-bold text-slate-300">12 Resolved Today</span>
+                    </div>
+                </div>
+                <button id="expand-map-btn"
+                    class="bg-slate-teal text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-slate-teal/80 transition-all border border-slate-teal/50 shadow-lg">
+                    EXPAND TACTICAL MAP <span class="material-symbols-outlined text-sm">open_in_full</span>
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Main Content Layout -->
+    <main class="flex flex-1">
+        <!-- Left Section: Task List -->
+        <section class="flex-1 flex flex-col border-r border-[#2A4B52] bg-background-dark/30">
+            <div class="p-6 flex justify-between items-center">
+                <div>
+                    <h2 class="text-2xl font-black text-white">Active Assignments</h2>
+                    <p class="text-slate-400 text-sm mt-1">Showing 4 prioritized tasks for your current sector</p>
+                </div>
+                <div class="flex gap-2">
+                    <button
+                        class="flex items-center gap-2 px-3 py-1.5 bg-slate-teal text-xs font-bold rounded hover:bg-slate-teal/80 transition-all uppercase tracking-widest">
+                        <span class="material-symbols-outlined text-sm">filter_list</span> Filter
+                    </button>
+                    <button
+                        class="flex items-center gap-2 px-3 py-1.5 bg-primary text-background-dark text-xs font-bold rounded hover:bg-primary/90 transition-all uppercase tracking-widest">
+                        <span class="material-symbols-outlined text-sm">refresh</span> Sync
+                    </button>
+                </div>
+            </div>
+            <!-- Task Feed (Bento Style Cards) -->
+            <div class="flex-1 px-6 pb-6 space-y-4">
+                <!-- Task Card 1 (Urgent) -->
+                <div
+                    class="bg-slate-teal/30 border-l-4 border-crimson-urgency rounded-lg p-5 flex gap-4 hover:bg-slate-teal/40 transition-colors cursor-pointer group relative">
+                    <div class="flex-1">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-xs font-bold text-crimson-urgency uppercase tracking-tighter">High Urgency
+                                · SLA Near Breach</span>
+                            <span class="text-xs text-slate-400">ID: #AQ-9082</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-white mb-1 group-hover:text-primary transition-colors">Open
+                            Burning: Site Residue</h3>
+                        <div class="flex items-center gap-4 text-sm text-slate-300">
+                            <span class="flex items-center gap-1">
+                                <span class="material-symbols-outlined text-sm text-slate-500">near_me</span> Sector 4,
+                                Main Road
+                            </span>
+                            <span class="flex items-center gap-1">
+                                <span class="material-symbols-outlined text-sm text-slate-500">schedule</span> 12 mins
+                                ago
+                            </span>
+                        </div>
+                        <!-- Status Toggle -->
+                        <div class="mt-4 flex gap-1 bg-background-dark/50 p-1 rounded-lg w-fit">
+                            <button
+                                class="px-4 py-1.5 rounded bg-primary/20 text-primary text-xs font-bold border border-primary/30">Assigned</button>
+                            <button
+                                class="px-4 py-1.5 rounded text-slate-500 hover:text-slate-300 text-xs font-bold">Actioned</button>
+                            <button
+                                class="px-4 py-1.5 rounded text-slate-500 hover:text-slate-300 text-xs font-bold">Closed</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-col items-end justify-between">
+                        <div
+                            class="bg-crimson-urgency/10 text-crimson-urgency px-3 py-2 rounded-lg border border-crimson-urgency/20 text-center">
+                            <p class="text-[10px] font-bold uppercase">SLA Timer</p>
+                            <p class="text-lg font-black leading-none">00:08:42</p>
+                        </div>
+                        <button class="text-slate-500 hover:text-white">
+                            <span class="material-symbols-outlined">more_vert</span>
+                        </button>
+                    </div>
+                </div>
+                <!-- Task Card 2 -->
+                <div
+                    class="bg-slate-teal/30 border-l-4 border-primary rounded-lg p-5 flex gap-4 hover:bg-slate-teal/40 transition-colors cursor-pointer group">
+                    <div class="flex-1">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-xs font-bold text-primary uppercase tracking-tighter">Routine
+                                Inspection</span>
+                            <span class="text-xs text-slate-400">ID: #AQ-9104</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-white mb-1 group-hover:text-primary transition-colors">
+                            Industrial Smoke Discharge</h3>
+                        <div class="flex items-center gap-4 text-sm text-slate-300">
+                            <span class="flex items-center gap-1">
+                                <span class="material-symbols-outlined text-sm text-slate-500">near_me</span> Zone B,
+                                Industrial Area
+                            </span>
+                            <span class="flex items-center gap-1">
+                                <span class="material-symbols-outlined text-sm text-slate-500">schedule</span> 45 mins
+                                ago
+                            </span>
+                        </div>
+                        <div class="mt-4 flex gap-1 bg-background-dark/50 p-1 rounded-lg w-fit">
+                            <button
+                                class="px-4 py-1.5 rounded text-slate-500 hover:text-slate-300 text-xs font-bold">Assigned</button>
+                            <button
+                                class="px-4 py-1.5 rounded bg-action-green/20 text-action-green text-xs font-bold border border-action-green/30">Actioned</button>
+                            <button
+                                class="px-4 py-1.5 rounded text-slate-500 hover:text-slate-300 text-xs font-bold">Closed</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-col items-end justify-between">
+                        <div
+                            class="bg-slate-teal text-slate-200 px-3 py-2 rounded-lg border border-slate-500/20 text-center">
+                            <p class="text-[10px] font-bold uppercase">SLA Timer</p>
+                            <p class="text-lg font-black leading-none">01:14:15</p>
+                        </div>
+                        <button class="text-slate-500 hover:text-white">
+                            <span class="material-symbols-outlined">more_vert</span>
+                        </button>
+                    </div>
+                </div>
+                <!-- Task Card 3 -->
+                <div
+                    class="bg-slate-teal/30 border-l-4 border-primary rounded-lg p-5 flex gap-4 hover:bg-slate-teal/40 transition-colors cursor-pointer group">
+                    <div class="flex-1">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-xs font-bold text-primary uppercase tracking-tighter">Construction
+                                Monitoring</span>
+                            <span class="text-xs text-slate-400">ID: #AQ-8991</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-white mb-1 group-hover:text-primary transition-colors">Dust
+                            Suppression Breach</h3>
+                        <div class="flex items-center gap-4 text-sm text-slate-300">
+                            <span class="flex items-center gap-1">
+                                <span class="material-symbols-outlined text-sm text-slate-500">near_me</span> Site 88,
+                                West Wing
+                            </span>
+                            <span class="flex items-center gap-1">
+                                <span class="material-symbols-outlined text-sm text-slate-500">schedule</span> 2 hrs ago
+                            </span>
+                        </div>
+                        <div class="mt-4 flex gap-1 bg-background-dark/50 p-1 rounded-lg w-fit">
+                            <button
+                                class="px-4 py-1.5 rounded bg-primary/20 text-primary text-xs font-bold border border-primary/30">Assigned</button>
+                            <button
+                                class="px-4 py-1.5 rounded text-slate-500 hover:text-slate-300 text-xs font-bold">Actioned</button>
+                            <button
+                                class="px-4 py-1.5 rounded text-slate-500 hover:text-slate-300 text-xs font-bold">Closed</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-col items-end justify-between">
+                        <div
+                            class="bg-slate-teal text-slate-200 px-3 py-2 rounded-lg border border-slate-500/20 text-center">
+                            <p class="text-[10px] font-bold uppercase">SLA Timer</p>
+                            <p class="text-lg font-black leading-none">00:34:02</p>
+                        </div>
+                        <button class="text-slate-500 hover:text-white">
+                            <span class="material-symbols-outlined">more_vert</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <!-- Right Section: Evidence Portal -->
+        <aside class="w-96 bg-background-dark flex flex-col p-6 shadow-2xl border-l border-[#2A4B52]">
+            <h2 class="text-xl font-bold mb-6 flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">cloud_upload</span>
+                Evidence Portal
+            </h2>
+            <!-- Upload Area -->
+            <div
+                class="border-2 border-dashed border-slate-teal rounded-xl p-8 flex flex-col items-center justify-center text-center bg-slate-teal/10 hover:bg-slate-teal/20 transition-all cursor-pointer group mb-6">
+                <div
+                    class="w-12 h-12 bg-slate-teal/30 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                    <span class="material-symbols-outlined text-primary">add_a_photo</span>
+                </div>
+                <p class="text-sm font-bold text-white">Upload Field Photos</p>
+                <p class="text-xs text-slate-400 mt-1">Drag and drop or click to browse</p>
+            </div>
+            <!-- Notes Section -->
+            <div class="flex-1 flex flex-col">
+                <label class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Compliance Notes</label>
+                <textarea
+                    class="flex-1 bg-slate-teal/20 border border-slate-teal/50 rounded-lg p-3 text-sm text-slate-200 placeholder:text-slate-600 focus:ring-1 focus:ring-primary focus:border-primary resize-none mb-6"
+                    placeholder="Document site observations, penalty notices issued, or mitigating factors..."></textarea>
+                <div class="mb-6">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 block">Recent
+                        Evidence</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <div class="aspect-square bg-slate-teal/40 rounded-lg bg-cover bg-center border border-slate-teal/50 hover:border-primary transition-colors cursor-zoom-in"
+                            data-alt="Field photo of industrial smoke"
+                            style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBoST22n2T3mE5qq-5-a6MxEzhnzd8WyFWnC9LRzdWFFk1N5ydyEL3R8q5oN_tAI58ff7S25sCptfBownGpH1fmMh5yYujs11bple8UY_w9-ZOH2PjPQjzBFccZnwJfAyn146mvW6wB8KCyycW2q202VMVxJDVVa1CtiRihe4I9l1BqAOWjKkZdkmkwK-Bgrp_F7qNOyNZzlB5bki6DIri5XMlqkexqDkCkZkw6EIiNimdadxEYj2Ia-26J9C95SSjQ9HtRFvKkzhw')">
+                        </div>
+                        <div class="aspect-square bg-slate-teal/40 rounded-lg bg-cover bg-center border border-slate-teal/50 hover:border-primary transition-colors cursor-zoom-in"
+                            data-alt="Field photo of open burning site"
+                            style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBEJ4nF_iWowP0HOYJ6xX0VJZwncmQetQel8REKfA5CUt4jgs1J62Hs_9uqTMVTq6ofm57aBqSUnYqu2tONDNjXmzewSjWJa0PDKg03i2NNci739iI1U5XV9UZKlcELkA98bmgbe7rv1q7RN71sDCcuYxdk-YVjE66QVABLg3xKd6CIk1mlF5_j0uRkZydfHlGksnSLKFlyPsclN3SI0fysDLE6r1Mg3mvw31DJ6otqDN6oOEJShtwWidAmwvvb4aCMHUrfD31uT7k')">
+                        </div>
+                        <div
+                            class="aspect-square bg-slate-teal/40 rounded-lg border border-dashed border-slate-teal/50 flex items-center justify-center text-slate-500">
+                            <span class="text-xs font-bold">+12</span>
+                        </div>
+                    </div>
+                </div>
+                <button
+                    class="w-full bg-primary text-background-dark font-black py-4 rounded-lg flex items-center justify-center gap-2 hover:bg-primary/90 transition-all active:scale-[0.98]">
+                    SUBMIT TASK REPORT <span class="material-symbols-outlined text-lg">check_circle</span>
+                </button>
+            </div>
+        </aside>
+    </main>
+    <!-- Footer Removed -->
+
+    <script>
+        // Map Initialization
+        let map;
+        document.addEventListener('DOMContentLoaded', () => {
+            map = L.map('map-container', {
+                zoomControl: false,
+                attributionControl: false
+            }).setView([28.6139, 77.2090], 11);
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                maxZoom: 19
+            }).addTo(map);
+
+            // Fetch and Render GeoJSON
+            fetch('/delhi_wards.geojson')
+                .then(response => response.json())
+                .then(data => {
+                    L.geoJSON(data, {
+                        style: (feature) => {
+                            // Simulate AQI data
+                            const aqi = Math.floor(Math.random() * 400);
+                            let color = '#00b050'; // Good
+                            if (aqi > 50) color = '#ffff00'; // Satisfactory
+                            if (aqi > 100) color = '#ff7f00'; // Moderate
+                            if (aqi > 200) color = '#ff0000'; // Poor
+                            if (aqi > 300) color = '#8b0000'; // Severe
+
+                            feature.properties.aqi = aqi;
+
+                            return {
+                                fillColor: color,
+                                weight: 1,
+                                opacity: 1,
+                                color: 'white',
+                                dashArray: '3',
+                                fillOpacity: 0.6
+                            };
+                        },
+                        onEachFeature: (feature, layer) => {
+                            layer.on('mouseover', function (e) {
+                                var layer = e.target;
+                                layer.setStyle({
+                                    weight: 3,
+                                    color: '#666',
+                                    dashArray: '',
+                                    fillOpacity: 0.8
+                                });
+                                layer.bringToFront();
+
+                                // Show Tooltip
+                                const tooltip = document.getElementById('map-tooltip');
+                                const tooltipName = document.getElementById('tooltip-name');
+                                const tooltipAqi = document.getElementById('tooltip-aqi');
+
+                                tooltipName.innerText = feature.properties.Ward_Name || 'Unknown Ward';
+                                tooltipAqi.innerText = feature.properties.aqi || '--';
+                                tooltip.classList.remove('hidden');
+                            });
+
+                            layer.on('mousemove', function (e) {
+                                const tooltip = document.getElementById('map-tooltip');
+                                tooltip.style.left = (e.originalEvent.clientX + 15) + 'px';
+                                tooltip.style.top = (e.originalEvent.clientY + 15) + 'px';
+                            });
+
+                            layer.on('mouseout', function (e) {
+                                // Reset Style
+                                e.target.setStyle({
+                                    weight: 1,
+                                    color: 'white',
+                                    dashArray: '3',
+                                    fillOpacity: 0.6
+                                });
+
+                                // Hide Tooltip
+                                document.getElementById('map-tooltip').classList.add('hidden');
+                            });
+
+                            layer.on('click', function (e) {
+                                map.fitBounds(e.target.getBounds());
+                            });
+                        }
+                    }).addTo(map);
+                })
+                .catch(err => console.error('Error loading GeoJSON:', err));
+        });
+
+        // Expand/Collapse Map Functionality
+        const mapSection = document.getElementById('map-section');
+        const expandBtn = document.getElementById('expand-map-btn');
+        let isExpanded = false;
+
+        if (expandBtn && mapSection) {
+            expandBtn.addEventListener('click', () => {
+                isExpanded = !isExpanded;
+
+                if (isExpanded) {
+                    mapSection.classList.remove('h-[35vh]');
+                    mapSection.classList.add('h-[85vh]');
+                    expandBtn.innerHTML = 'COLLAPSE TACTICAL MAP <span class="material-symbols-outlined text-sm">close_fullscreen</span>';
+                    expandBtn.classList.add('bg-crimson-urgency', 'border-crimson-urgency');
+                    expandBtn.classList.remove('bg-slate-teal', 'border-slate-teal/50');
+                } else {
+                    mapSection.classList.add('h-[35vh]');
+                    mapSection.classList.remove('h-[85vh]');
+                    expandBtn.innerHTML = 'EXPAND TACTICAL MAP <span class="material-symbols-outlined text-sm">open_in_full</span>';
+                    expandBtn.classList.remove('bg-crimson-urgency', 'border-crimson-urgency');
+                    expandBtn.classList.add('bg-slate-teal', 'border-slate-teal/50');
+                }
+
+                // Wait for transition to finish then invalidate map size
+                setTimeout(() => {
+                    if (map) map.invalidateSize();
+                }, 500);
+            });
+        }
+    </script>
+</body>
+
+</html>
