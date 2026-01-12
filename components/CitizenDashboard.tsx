@@ -6,6 +6,7 @@ import { getHealthAdvice, getWardExplainer } from '../services/geminiService';
 import cacService from '../services/cacService';
 import { getStoredWard } from '../services/locationService';
 import LeafletAQIMap from './LeafletAQIMap';
+import HealthRiskDashboard from './HealthRiskDashboard';
 
 interface CitizenDashboardProps {
   onNavigateMap: () => void;
@@ -13,8 +14,7 @@ interface CitizenDashboardProps {
 }
 
 const CitizenDashboard: React.FC<CitizenDashboardProps> = ({ onNavigateMap, detectedWard }) => {
-  const [advice, setAdvice] = useState<string>('');
-  const [explainer, setExplainer] = useState<string>('');
+
   const [isReporting, setIsReporting] = useState(false);
   const [isAuditing, setIsAuditing] = useState(false);
   const [reportData, setReportData] = useState({
@@ -26,6 +26,7 @@ const CitizenDashboard: React.FC<CitizenDashboardProps> = ({ onNavigateMap, dete
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Start as not joined; joining happens when user clicks the button
   const [joinedMission, setJoinedMission] = useState<boolean>(false);
+  const [showHealthRisks, setShowHealthRisks] = useState(false);
 
   // Use detected ward or stored ward, fallback to first ward
   const userWard = detectedWard || getStoredWard() || DELHI_WARDS[0];
@@ -76,6 +77,12 @@ const CitizenDashboard: React.FC<CitizenDashboardProps> = ({ onNavigateMap, dete
     }, 1500);
   };
 
+  // Dummy data for immediate display
+  const [advice, setAdvice] = useState<string>('Children and elderly should strictly limit outdoor exertion. Asthmatics should keep relief medicine handy.');
+  const [explainer, setExplainer] = useState<string>('Current wind patterns are trapping local emissions. Vehicular pollution is the dominant contributor today.');
+
+  /* 
+  // Commenting out the API call for now to show dummy data
   useEffect(() => {
     const fetchContext = async () => {
       const [hMsg, eMsg] = await Promise.all([
@@ -87,10 +94,11 @@ const CitizenDashboard: React.FC<CitizenDashboardProps> = ({ onNavigateMap, dete
     };
     fetchContext();
   }, []);
+  */
 
   return (
     <div className="flex-1 p-6 space-y-6 max-w-[1440px] mx-auto animate-in fade-in duration-700">
-      
+
       {/* Full-Width Header Status */}
       <section className="bg-white dark:bg-[#2D525A] rounded-xl p-8 shadow-xl border border-white/5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
@@ -124,7 +132,7 @@ const CitizenDashboard: React.FC<CitizenDashboardProps> = ({ onNavigateMap, dete
               </div>
               <p className="text-sm opacity-60">Compared to 24h average</p>
             </div>
-            <button 
+            <button
               onClick={onNavigateMap}
               className="bg-[#00bdd6] hover:bg-[#00bdd6]/90 text-[#1b3f46] font-extrabold px-6 py-3 rounded-lg flex items-center gap-2 transition-transform active:scale-95"
             >
@@ -137,10 +145,10 @@ const CitizenDashboard: React.FC<CitizenDashboardProps> = ({ onNavigateMap, dete
 
       {/* Main Body Split */}
       <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
-        
+
         {/* Left Column (60%) */}
         <div className="lg:col-span-6 space-y-6">
-          
+
           {/* Health Advisory Guide */}
           <div className="bg-white dark:bg-[#2D525A] rounded-xl p-6 shadow-md border border-white/5">
             <div className="flex items-center justify-between mb-6">
@@ -152,7 +160,18 @@ const CitizenDashboard: React.FC<CitizenDashboardProps> = ({ onNavigateMap, dete
                 Active Warning
               </span>
             </div>
-            
+
+            {/* Health Risk Dashboard Integration */}
+            <div className="mb-6">
+              <button
+                onClick={() => setShowHealthRisks(true)}
+                className="w-full bg-[#00bdd6]/10 hover:bg-[#00bdd6]/20 border border-[#00bdd6]/30 text-[#00bdd6] font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-all"
+              >
+                <span className="material-symbols-outlined">health_and_safety</span>
+                View Detailed Health Risks & Precautions
+              </button>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
               <div className="p-4 rounded-xl bg-slate-50 dark:bg-[#1b3f46]/50 border border-white/5 flex flex-col items-center text-center gap-3">
                 <span className="material-symbols-outlined text-3xl text-[#00bdd6]">masks</span>
@@ -219,7 +238,7 @@ const CitizenDashboard: React.FC<CitizenDashboardProps> = ({ onNavigateMap, dete
 
         {/* Right Column (40%) */}
         <div className="lg:col-span-4 space-y-6">
-          
+
           {/* Civic Response Tracker */}
           <div className="bg-white dark:bg-[#2D525A] rounded-xl p-6 shadow-md border border-white/5">
             <div className="flex items-center justify-between mb-6">
@@ -239,11 +258,10 @@ const CitizenDashboard: React.FC<CitizenDashboardProps> = ({ onNavigateMap, dete
                   <div className="flex-1">
                     <div className="flex justify-between items-start">
                       <p className="font-bold text-sm">{c.type}</p>
-                      <span className={`text-[10px] px-2 py-0.5 rounded uppercase font-bold ${
-                        c.status === 'Resolved' ? 'bg-green-500/20 text-green-400' : 
-                        c.status === 'Actioned' ? 'bg-[#00bdd6]/20 text-[#00bdd6]' : 
-                        'bg-white/10 opacity-60'
-                      }`}>
+                      <span className={`text-[10px] px-2 py-0.5 rounded uppercase font-bold ${c.status === 'Resolved' ? 'bg-green-500/20 text-green-400' :
+                        c.status === 'Actioned' ? 'bg-[#00bdd6]/20 text-[#00bdd6]' :
+                          'bg-white/10 opacity-60'
+                        }`}>
                         {c.status}
                       </span>
                     </div>
@@ -257,7 +275,7 @@ const CitizenDashboard: React.FC<CitizenDashboardProps> = ({ onNavigateMap, dete
 
           {/* Quick Action Cards */}
           <div className="grid grid-cols-2 gap-4">
-            <button 
+            <button
               onClick={() => { setReportData(d => ({ ...d, type: 'Fire Incident' })); setIsReporting(true); }}
               className="bg-white dark:bg-[#2D525A] p-5 rounded-xl border border-white/5 hover:border-[#00bdd6]/50 transition-all text-left flex flex-col gap-3 group"
             >
@@ -269,8 +287,8 @@ const CitizenDashboard: React.FC<CitizenDashboardProps> = ({ onNavigateMap, dete
                 <p className="text-[10px] opacity-50 mt-1">Illegal waste or debris</p>
               </div>
             </button>
-            
-            <button 
+
+            <button
               onClick={() => setIsAuditing(true)}
               className="bg-white dark:bg-[#2D525A] p-5 rounded-xl border border-white/5 hover:border-[#00bdd6]/50 transition-all text-left flex flex-col gap-3 group"
             >
@@ -283,7 +301,7 @@ const CitizenDashboard: React.FC<CitizenDashboardProps> = ({ onNavigateMap, dete
               </div>
             </button>
 
-            <button 
+            <button
               onClick={onNavigateMap}
               className="bg-white dark:bg-[#2D525A] p-5 rounded-xl border border-white/5 hover:border-[#00bdd6]/50 transition-all text-left flex flex-col gap-3 group"
             >
@@ -296,7 +314,7 @@ const CitizenDashboard: React.FC<CitizenDashboardProps> = ({ onNavigateMap, dete
               </div>
             </button>
 
-            <button 
+            <button
               onClick={() => window.location.href = '/clean-air-credits'}
               className="bg-white dark:bg-[#2D525A] p-5 rounded-xl border border-white/5 hover:border-[#00bdd6]/50 transition-all text-left flex flex-col gap-3 group"
             >
@@ -498,11 +516,11 @@ const CitizenDashboard: React.FC<CitizenDashboardProps> = ({ onNavigateMap, dete
                         // Mark joined locally and award CAC (+2) - fixed action ID prevents duplicate awards
                         const actionId = 'join:WasteSegregation';
                         const res = cacService.awardCAC(2, { id: actionId, note: 'Joined mission: Waste Segregation' });
-                        
+
                         if (res && res.ok) {
                           alert(`Joined — You earned 2 CAC! New balance: ${res.newBalance} CAC`);
                           setJoinedMission(true);
-                          try { localStorage.setItem('joinedWasteSegregation', 'true'); } catch {}
+                          try { localStorage.setItem('joinedWasteSegregation', 'true'); } catch { }
                         } else if (res?.error === 'already awarded') {
                           alert('You have already joined this mission and received your CAC reward.');
                           setJoinedMission(true);
@@ -545,6 +563,11 @@ const CitizenDashboard: React.FC<CitizenDashboardProps> = ({ onNavigateMap, dete
             </div>
           </div>
         </div>
+      )}
+
+      {/* Health Risk Dashboard Overlay */}
+      {showHealthRisks && (
+        <HealthRiskDashboard onBack={() => setShowHealthRisks(false)} />
       )}
     </div >
   );
